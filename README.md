@@ -57,15 +57,19 @@ En développement, la base est dans `%LOCALAPPDATA%\SGD\Data\restaurant.db` sous
 ### Créer les fichiers de livraison sur le PC de développement
 
 1. Installez PyInstaller dans l'environnement Python contenant les dépendances : `python -m pip install pyinstaller`.
-2. Depuis la racine du projet, exécutez `powershell -ExecutionPolicy Bypass -File .\build_windows.ps1`. Cela crée l'application `dist\GestionRestaurant.exe` et son manifeste de compilation.
-3. Créez l'installateur autonome : `powershell -ExecutionPolicy Bypass -File .\installer\build_installer.ps1`. Le fichier destiné au client est `release\SGD-Setup.exe`.
+2. Installez Inno Setup 6 sur le PC de développement. Depuis la racine du projet, exécutez `powershell -ExecutionPolicy Bypass -File .\build_windows.ps1`. Cela crée l'application `dist\GestionRestaurant.exe` et son manifeste de compilation.
+3. Créez l'installateur autonome : `powershell -ExecutionPolicy Bypass -File .\installer\build_installer.ps1`. Le compilateur Inno Setup (`ISCC.exe`) doit être installé sur le PC de développement. Le fichier destiné au client est `release\SGD-Setup.exe`.
 4. Livrez uniquement `SGD-Setup.exe`. Le paquet comprend l'application et son installateur, mais n'embarque ni `restaurant.db`, ni `.env`, ni les sources de développement. Ne distribuez pas directement l'ancien EXE dans `dist`.
 
 ### Installation sur le PC du client
 
-Le client lance `SGD-Setup.exe` et accepte l'invite UAC. Une fenêtre de commande visible demande éventuellement l'adresse Gmail et le mot de passe d'application ; en cas d'erreur, elle reste ouverte pour afficher le message. SGD est installé dans `C:\Program Files\SGB`. L'installateur crée un raccourci sur le Bureau, mais **aucune base de données sur le Bureau**. La base neuve est créée au premier lancement sous `C:\Program Files\SGB\Data\restaurant.db`. Le client ouvre SGD depuis le raccourci et crée son premier compte.
+Le client lance `SGD-Setup.exe`, accepte l'invite UAC et suit l'assistant Inno Setup. L'installateur place SGD dans `C:\Program Files\SGB`, crée un raccourci dans le menu Démarrer et sur le Bureau, puis peut lancer l'application. **Aucune base de données n'est placée sur le Bureau** : elle est créée au premier lancement sous `C:\Program Files\SGB\Data\restaurant.db`. Le client crée alors son premier compte. La désinstallation retire les fichiers du programme, mais conserve les données non vides dans `Data`.
 
-Windows protège `Program Files`; l'installateur accorde donc les droits d'écriture sur `Data` au compte Windows qui réalise l'installation. Utilisez le profil Windows du client pendant l'élévation UAC. La configuration Gmail est facultative : sans elle, l'application fonctionne, mais ne peut pas envoyer les codes de récupération. Pour activer l'envoi, saisissez le compte expéditeur et son mot de passe d'application Google durant l'installation. Le secret est chiffré par DPAPI et stocké séparément dans `%APPDATA%\SGD\.env` pour ce profil Windows. Testez l'envoi Gmail sur le PC cible.
+Inno Setup gère maintenant l'installation et la désinstallation. Le dossier `Data` accorde les droits de modification au groupe Windows `Users`, comme dans l'exemple `.iss` ci-dessous. L'installateur ne configure pas Gmail et ne demande pas de mot de passe d'application ; cette configuration est facultative et séparée de l'installation.
+
+Pour enregistrer un journal Inno Setup lors d'un diagnostic, lancez `SGD-Setup.exe /LOG="%TEMP%\SGD-Setup.log"`.
+
+Windows protège `Program Files`; l'installateur accorde donc les droits d'écriture sur `Data` aux utilisateurs Windows locaux. La configuration Gmail est facultative : sans elle, l'application fonctionne, mais ne peut pas envoyer les codes de récupération. Testez l'envoi Gmail sur le PC cible après avoir configuré le SMTP.
 
 Une installation sur un nouveau PC crée sa propre base. Une réinstallation sur le même PC conserve la base existante. Sauvegardez-la avant toute maintenance. La base reste dans `C:\Program Files\SGB\Data`, jamais sur le Bureau.
 
@@ -94,7 +98,7 @@ Il n’y a pas de serveur ni de synchronisation en ligne prévus. La base locale
 
 ### Configuration de la récupération par e-mail
 
-Pour l'installation Windows, `release\SGD-Setup.exe` demande facultativement le compte Gmail expéditeur et son mot de passe d'application avant l'élévation UAC, puis enregistre les paramètres dans `%APPDATA%\SGD\.env`, jamais dans le programme compilé; le mot de passe est chiffré par Windows DPAPI et lié au profil Windows qui lance l'installateur. Pour préparer Gmail, activez la validation en deux étapes sur le compte expéditeur Google, créez un **mot de passe d'application Google**, puis saisissez ce mot de passe dans l'installateur. Le mot de passe normal du compte Gmail n'est pas pris en charge. Le fichier `.env.example` ne contient que des valeurs fictives. Ne partagez et ne publiez jamais votre fichier `.env` ou le mot de passe d'application.
+Pour activer la récupération par e-mail sur Windows, configurez les paramètres SMTP dans le fichier privé `%APPDATA%\SGD\.env` pour le compte Windows qui utilisera l'application. L'installateur ne saisit ni ne chiffre les paramètres SMTP. Pour préparer Gmail, activez la validation en deux étapes sur le compte expéditeur Google et créez un **mot de passe d'application Google** ; le mot de passe normal du compte Gmail n'est pas pris en charge. Le fichier `.env.example` ne contient que des valeurs fictives. Ne partagez et ne publiez jamais votre fichier `.env` ou le mot de passe d'application.
 
 - `SGD_SMTP_HOST` : `smtp.gmail.com`.
 - `SGD_SMTP_PORT` : `587` (STARTTLS).
@@ -102,7 +106,7 @@ Pour l'installation Windows, `release\SGD-Setup.exe` demande facultativement le 
 - `SGD_SMTP_PASSWORD` : mot de passe d'application Google, pas le mot de passe Gmail.
 - `SGD_SMTP_FROM` : même adresse Gmail.
 
-Si l'adresse est laissée vide dans l'installateur, il n'y aura pas d'envoi de courriel avant configuration SMTP. L'envoi réel doit être vérifié sur le poste avec un compte Gmail et un mot de passe d'application valides; aucun identifiant n'est fourni ou intégré à ce dépôt.
+Sans configuration SMTP, il n'y aura pas d'envoi de courriel. L'envoi réel doit être vérifié sur le poste avec un compte Gmail et un mot de passe d'application valides ; aucun identifiant n'est fourni ou intégré à ce dépôt.
 
 Le message est envoyé à l’adresse enregistrée pour le compte. Le code de six chiffres est conservé uniquement en mémoire (sous forme de hash), expire après 10 minutes, est limité à cinq essais et doit être confirmé avant toute réinitialisation. Si l’application est fermée, demandez un nouveau code.
 
@@ -143,3 +147,47 @@ Après stabilisation : validation des dates et montants, messages d’erreur, co
 | 2026-10-02 | Clarification de la récupération en trois étapes visibles : vérifier l’adresse, envoyer puis valider le code, et enfin définir le nouveau mot de passe. Le stockage vérifie séparément le code confirmé avant d’autoriser la modification. | Compilation `main.py` et `database.py` réussie; test sur SQLite temporaire : changement bloqué avant code valide, code incorrect refusé, code correct accepté puis nouveau mot de passe haché enregistré. Envoi réel Mailtrap non testé sans identifiants SMTP renseignés. |
 
 **Prudence :** avant toute modification de `database.py`, du schéma ou des chemins, travailler sur une copie de `restaurant.db`. Ne supprimer aucun fichier historique ou de données tant que son rôle n’est pas établi.
+
+
+; ============================================================
+; SGD - Gestion Restaurant
+; Installateur Inno Setup
+; ============================================================
+
+[Setup]
+AppName=SGD - Gestion Restaurant
+AppVersion=1.0.0
+DefaultDirName={commonpf}\SGB
+DefaultGroupName=SGD - Gestion Restaurant
+OutputBaseFilename=SGD-Setup
+OutputDir=..\release
+Compression=lzma2
+SolidCompression=yes
+PrivilegesRequired=admin
+SetupIconFile=..\SGD.ico
+WizardStyle=modern
+UninstallDisplayIcon={app}\GestionRestaurant.exe
+ArchitecturesInstallIn64BitMode=x64
+AppendDefaultDirName=no
+CreateAppDir=yes
+UsePreviousAppDir=no
+DisableWelcomePage=no
+DisableDirPage=no
+DisableProgramGroupPage=no
+DisableReadyMemo=no
+DisableReadyPage=no
+DisableFinishedPage=no
+
+[Files]
+Source: "..\dist\GestionRestaurant.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\SGD.ico"; DestDir: "{app}"; Flags: ignoreversion
+
+[Dirs]
+Name: "{app}\Data"; Permissions: users-modify
+
+[Icons]
+Name: "{commonprograms}\SGD - Gestion Restaurant"; Filename: "{app}\GestionRestaurant.exe"; WorkingDir: "{app}"; IconFilename: "{app}\GestionRestaurant.exe"
+Name: "{commondesktop}\SGD - Gestion Restaurant"; Filename: "{app}\GestionRestaurant.exe"; WorkingDir: "{app}"; IconFilename: "{app}\GestionRestaurant.exe"
+
+[Run]
+Filename: "{app}\GestionRestaurant.exe"; Description: "Lancer SGD"; Flags: nowait postinstall skipifsilent

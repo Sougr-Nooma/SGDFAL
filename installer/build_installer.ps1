@@ -1,4 +1,4 @@
- #requires -Version 5.1
+#requires -Version 5.1
 $ErrorActionPreference = 'Stop'
 $projectDirectory = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $executable = Join-Path $projectDirectory 'dist\GestionRestaurant.exe'
@@ -17,117 +17,62 @@ if ((Get-FileHash -LiteralPath $executable -Algorithm SHA256).Hash -ne $buildMan
     throw 'L executable compile ne correspond pas au manifeste. Recompilez SGD.'
 }
 
-$iexpress = Join-Path $env:WINDIR 'System32\iexpress.exe'
-if (-not (Test-Path -LiteralPath $iexpress -PathType Leaf)) { throw 'IExpress de Windows est introuvable.' }
-$stagingDirectory = Join-Path $projectDirectory 'build\installer-payload'
-$distributionDirectory = Join-Path $projectDirectory 'release'
-New-Item -ItemType Directory -Path $stagingDirectory -Force | Out-Null
-New-Item -ItemType Directory -Path $distributionDirectory -Force | Out-Null
-$payloadExe = Join-Path $stagingDirectory 'GestionRestaurant.exe'
-$payloadScript = Join-Path $stagingDirectory 'Install-SGD.ps1'
-$payloadLauncher = Join-Path $stagingDirectory 'Launch-SGD-Installer.cmd'
-Copy-Item -LiteralPath $executable -Destination $payloadExe -Force
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'install_payload.ps1') -Destination $payloadScript -Force
-$launcherLines = @(
-    '@echo off',
-    'setlocal',
-    'cd /d "%~dp0"',
-    'echo Demarrage de l installation SGD...',
-    'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Install-SGD.ps1"',
-    'set "installExitCode=%ERRORLEVEL%"',
-    'if not "%installExitCode%"=="0" (',
-    '    echo.',
-    '    echo L installation a echoue avec le code %installExitCode%.',
-    '    echo Lisez le message ci-dessus, puis contactez le support.',
-    '    pause',
-    '    exit /b %installExitCode%',
-    ')',
-    'exit /b 0'
-)
-[IO.File]::WriteAllLines($payloadLauncher, $launcherLines, [Text.Encoding]::ASCII)
-$payloadManifest = @{ executable_sha256 = (Get-FileHash -LiteralPath $payloadExe -Algorithm SHA256).Hash }
-$payloadManifestPath = Join-Path $stagingDirectory 'SGD-payload-manifest.json'
-$payloadManifest | ConvertTo-Json | Set-Content -LiteralPath $payloadManifestPath -Encoding UTF8
+$compilerCandidates = @()
+$compilerCommand = Get-Command ISCC.exe -ErrorAction SilentlyContinue
+if ($null -ne $compilerCommand) {
+    $compilerCandidates += $compilerCommand.Source
+}
+foreach ($programFiles in @(${env:ProgramFiles(x86)}, $env:ProgramFiles)) {
+    if (-not [string]::IsNullOrWhiteSpace($programFiles)) {
+        $compilerCandidates += Join-Path $programFiles 'Inno Setup 6\ISCC.exe'
+    }
+}
+if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+    $compilerCandidates += Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe'
+}
+$compiler = $compilerCandidates |
+    Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+    Select-Object -First 1
+if ([string]::IsNullOrWhiteSpace($compiler)) {
+    throw 'Le compilateur Inno Setup 6 (ISCC.exe) est introuvable. Installez Inno Setup 6 sur le PC de developpement : https://jrsoftware.org/isdl.php'
+}
 
-# Génère le fichier de définition SED d'IExpress pour un installateur auto-extractible.
-$sedPath = Join-Path $projectDirectory 'build\SGD-Setup.sed'
-$setupExe = Join-Path $distributionDirectory 'SGD-Setup.exe'
+$distributionDirectory = Join-Path $projectDirectory 'release'
+$installerDefinition = Join-Path $PSScriptRoot 'SGD-Setup.iss'
 $temporarySetupExe = Join-Path $distributionDirectory 'SGD-Setup-building.exe'
-$sedLines = @(
-    '[Version]',
-    'Class=IEXPRESS',
-    'SEDVersion=3',
-    '[Options]',
-    'PackagePurpose=InstallApp',
-    'ShowInstallProgramWindow=1',
-    'HideExtractAnimation=1',
-    'UseLongFileName=1',
-    'ExtractTitle=Installation de SGD',
-    'InsideCompressed=1',
-    'CAB_FixedSize=0',
-    'CAB_ResvCodeSigning=0',
-    'RebootMode=N',
-    'InstallPrompt=',
-    'DisplayLicense=',
-    'FinishMessage=SGD est installe dans C:\Program Files\SGB. Lancez-le avec le raccourci du Bureau.',
-    'TargetName=release\SGD-Setup-building.exe',
-    'FriendlyName=SGD - Gestion Restaurant',
-    'AppLaunched=cmd.exe /d /c Launch-SGD-Installer.cmd',
-    'PostInstallCmd=<None>',
-    'AdminQuietInstCmd=',
-    'UserQuietInstCmd=',
-    'SourceFiles=SourceFiles',
-    '[SourceFiles]',
-    'SourceFiles0=build\installer-payload',
-    '[SourceFiles0]',
-    '%FILE0%=',
-    '%FILE1%=',
-    '%FILE2%=',
-    '%FILE3%=',
-    '[Strings]',
-    'FILE0="GestionRestaurant.exe"',
-    'FILE1="Install-SGD.ps1"',
-    'FILE2="SGD-payload-manifest.json"',
-    'FILE3="Launch-SGD-Installer.cmd"'
-)
-[IO.File]::WriteAllLines($sedPath, $sedLines, [Text.Encoding]::Default)
+$setupExe = Join-Path $distributionDirectory 'SGD-Setup.exe'
+New-Item -ItemType Directory -Path $distributionDirectory -Force | Out-Null
 if (Test-Path -LiteralPath $temporarySetupExe -PathType Leaf) {
     Remove-Item -LiteralPath $temporarySetupExe -Force
 }
-$iexpressProcess = Start-Process -FilePath $iexpress -ArgumentList @('/N', '/Q', 'build\SGD-Setup.sed') `
-    -WorkingDirectory $projectDirectory -PassThru
-$buildDeadline = [DateTime]::Now.AddMinutes(10)
-$lastPackageLength = -1
-$stablePackageChecks = 0
-while ([DateTime]::Now -lt $buildDeadline) {
-    if (Test-Path -LiteralPath $temporarySetupExe -PathType Leaf) {
-        $packageLength = (Get-Item -LiteralPath $temporarySetupExe).Length
-        if ($packageLength -gt 0 -and $packageLength -eq $lastPackageLength) {
-            $stablePackageChecks++
-            if ($stablePackageChecks -ge 2) { break }
-        }
-        else {
-            $stablePackageChecks = 0
-        }
-        $lastPackageLength = $packageLength
+
+Push-Location $projectDirectory
+try {
+    & $compiler /Qp $installerDefinition
+    if ($LASTEXITCODE -ne 0) {
+        throw "La compilation Inno Setup a echoue (code $LASTEXITCODE)."
     }
-    else {
-        $lastPackageLength = -1
-        $stablePackageChecks = 0
+}
+finally {
+    Pop-Location
+}
+if (-not (Test-Path -LiteralPath $temporarySetupExe -PathType Leaf) -or
+    (Get-Item -LiteralPath $temporarySetupExe).Length -le 0) {
+    throw 'Inno Setup n a pas produit un installateur valide.'
+}
+
+if (Test-Path -LiteralPath $setupExe -PathType Leaf) {
+    $backupSetupExe = Join-Path $distributionDirectory ('SGD-Setup-backup-' + [guid]::NewGuid().ToString('N') + '.exe')
+    [IO.File]::Replace($temporarySetupExe, $setupExe, $backupSetupExe)
+    try {
+        Remove-Item -LiteralPath $backupSetupExe -Force -ErrorAction Stop
     }
-    Start-Sleep -Seconds 5
-}
-if (-not (Test-Path -LiteralPath $temporarySetupExe -PathType Leaf)) {
-    if (-not $iexpressProcess.HasExited) {
-        Stop-Process -Id $iexpressProcess.Id -ErrorAction SilentlyContinue
+    catch {
+        Write-Warning "Le nouvel installateur est cree, mais l ancien fichier utilise comme sauvegarde est verrouille : $backupSetupExe"
     }
-    throw "IExpress n a pas produit l installateur apres 10 minutes. Verifiez $sedPath."
 }
-if ((Get-Item -LiteralPath $temporarySetupExe).Length -le 0) {
-    Remove-Item -LiteralPath $temporarySetupExe -Force
-    throw 'IExpress a produit un fichier installateur vide.'
+else {
+    [IO.File]::Move($temporarySetupExe, $setupExe)
 }
-Copy-Item -LiteralPath $temporarySetupExe -Destination $setupExe -Force
-Remove-Item -LiteralPath $temporarySetupExe -Force
 Write-Host "Installateur client cree : $setupExe"
-Write-Host 'Il installe uniquement le programme : aucune base de developpement ou configuration .env n est incluse.'
+Write-Host 'Le paquet ne contient ni base de donnees, ni fichier .env, ni source du projet.'
