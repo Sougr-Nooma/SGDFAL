@@ -2,6 +2,7 @@ from responsive_accueil import ResponsiveAccueil
 import tkinter as tk
 from tkinter import ttk, messagebox
 import database
+from ui_utils import configurer_icone_fenetre
 from depenses import Depenses
 from revenus import Revenus
 from rapport import Rapport
@@ -33,6 +34,7 @@ class ResponsiveApp:
         comptes = database.get_all_comptes()
         fenetre = tk.Toplevel(self.root)
         fenetre.title("Connexion - SGD")
+        configurer_icone_fenetre(fenetre, "comptes")
         fenetre.geometry("360x330" if comptes else "360x390")
         fenetre.resizable(False, False)
         # La racine est masquée jusqu'à l'authentification; une fenêtre
@@ -106,6 +108,7 @@ class ResponsiveApp:
 
     def setup_window(self):
         """Configure la fenêtre principale responsive"""
+        configurer_icone_fenetre(self.root)
         self.root.title("SGD - Gestion Restaurant Responsive")
         
         # Adapter la taille à l'écran

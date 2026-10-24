@@ -8,7 +8,11 @@ if (-not (Test-Path -LiteralPath $executable -PathType Leaf) -or
     throw 'Compilez d abord le programme avec ..\build_windows.ps1.'
 }
 $buildManifest = Get-Content -LiteralPath $buildManifestPath -Raw | ConvertFrom-Json
-foreach ($relativePath in @('main.py', 'database.py', 'GestionRestaurant.spec', 'SGD.ico', 'SGD.png')) {
+foreach ($relativePath in @(
+    'main.py', 'database.py', 'ui_utils.py', 'accueil.py', 'depenses.py',
+    'revenus.py', 'rapport.py', 'deptext.py', 'GestionRestaurant.spec',
+    'SGD.ico', 'SGD.png'
+)) {
     $expectedHash = $buildManifest.source_sha256.$relativePath
     $actualHash = (Get-FileHash -LiteralPath (Join-Path $projectDirectory $relativePath) -Algorithm SHA256).Hash
     if ($actualHash -ne $expectedHash) { throw "La compilation est perimee : $relativePath a change. Recompilez SGD." }

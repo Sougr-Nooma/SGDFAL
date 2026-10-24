@@ -3,6 +3,7 @@ from tkinter import ttk, messagebox
 from tkcalendar import Calendar
 import database
 from database import get_all_revenus_by_compte, ajouter_revenu
+from ui_utils import configurer_icone_fenetre, placer_fenetre_sous_navbar
 from datetime import datetime
 import math
 import matplotlib.pyplot as plt
@@ -291,7 +292,9 @@ class Revenus:
         """Ouvre une fenêtre pour ajouter un revenu avec calendrier"""
         ajout_fenetre = tk.Toplevel(self.parent_frame)
         ajout_fenetre.title("Ajouter un revenu")
+        configurer_icone_fenetre(ajout_fenetre, "revenus")
         ajout_fenetre.geometry("400x450")
+        placer_fenetre_sous_navbar(ajout_fenetre, self.parent_frame, 400, 450)
         ajout_fenetre.resizable(False, False)
         ajout_fenetre.transient(self.parent_frame)
         ajout_fenetre.grab_set()
@@ -420,6 +423,7 @@ class Revenus:
         """Ouvre le calendrier et met à jour le bouton avec la date choisie"""
         cal_window = tk.Toplevel(self.parent_frame.winfo_toplevel())
         cal_window.title("Choisir la date")
+        configurer_icone_fenetre(cal_window, "revenus")
         cal_window.geometry("400x500")
         cal_window.configure(bg="white")
         cal_window.transient(self.parent_frame.winfo_toplevel())

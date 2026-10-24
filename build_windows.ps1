@@ -19,7 +19,11 @@ if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
 }
 # Marquer l'artefact avec les empreintes des sources de compilation afin que
 # l'installateur refuse un ancien .exe, par exemple celui du dossier dist existant.
-$sourceFiles = @('main.py', 'database.py', 'GestionRestaurant.spec', 'SGD.ico', 'SGD.png')
+$sourceFiles = @(
+    'main.py', 'database.py', 'ui_utils.py', 'accueil.py', 'depenses.py',
+    'revenus.py', 'rapport.py', 'deptext.py', 'GestionRestaurant.spec',
+    'SGD.ico', 'SGD.png'
+)
 $sourceHashes = @{}
 foreach ($relativePath in $sourceFiles) {
     $sourcePath = Join-Path $projectDirectory $relativePath

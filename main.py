@@ -2,6 +2,13 @@ from accueil import Accueil
 import tkinter as tk
 from tkinter import ttk, messagebox
 import database  # 👈 IMPORTATION CENTRALE DE TOUTE LA LOGIQUE BD
+from ui_utils import (
+    centrer_fenetre,
+    configurer_icone_fenetre,
+    creer_logo_section,
+    placer_fenetre_sous_navbar,
+    resource_path,
+)
 from depenses import Depenses 
 from revenus import Revenus
 from rapport import Rapport
@@ -94,24 +101,6 @@ def charger_configuration_locale():
                 os.environ[cle] = valeur
 
 
-def resource_path(relative_path):
-    """Retourne le chemin d'une ressource en développement ou dans PyInstaller."""
-    base_path = getattr(sys, "_MEIPASS", Path(__file__).resolve().parent)
-    return os.path.join(base_path, relative_path)
-
-
-def configurer_icone_fenetre(root):
-    """Applique l'icône SGD pour remplacer l'icône Python par défaut."""
-    try:
-        root.iconbitmap(resource_path("SGD.ico"))
-    except tk.TclError:
-        try:
-            root._sgd_icon_photo = tk.PhotoImage(file=resource_path("SGD.png"))
-            root.iconphoto(True, root._sgd_icon_photo)
-        except tk.TclError as erreur:
-            print(f"Impossible de charger l'icône SGD : {erreur}")
-
-
 charger_configuration_locale()
 class App:
     def __init__(self, root):
@@ -131,24 +120,22 @@ class App:
         # === BARRE DE NAVIGATION ===
         nav_frame = tk.Frame(root, bg="#2c3e50", height=60)
         nav_frame.pack(side="top", fill="x")
+        root._sgd_navbar = nav_frame
 
         # Frame contenant logo + texte "SGD"
         sgd_frame = tk.Frame(nav_frame, bg="#2c3e50")
         sgd_frame.pack(side="left", padx=20, pady=10)
 
-        # Charger et afficher le logo
+        # Afficher le logo sur un fond accordé à la section active.
         try:
-            from PIL import Image, ImageTk
-            logo_img = Image.open(resource_path("SGD.png"))
-            logo_img = logo_img.resize((32, 32))  # Ajustez la taille si besoin
-            self.logo_tk = ImageTk.PhotoImage(logo_img)
-            logo_label = tk.Label(sgd_frame, image=self.logo_tk, bg="#2c3e50")
-            logo_label.pack(side="left")
+            from PIL import ImageTk
+            self.logo_tk = ImageTk.PhotoImage(creer_logo_section("accueil"))
+            self.logo_label = tk.Label(sgd_frame, image=self.logo_tk, bg="#2c3e50")
+            self.logo_label.pack(side="left")
         except Exception as e:
             print("Erreur chargement logo :", e)
-            # Optionnel : afficher un placeholder si le logo n’est pas trouvé
-            logo_label = tk.Label(sgd_frame, text="🖼️", font=("Arial", 16), bg="#2c3e50", fg="white")
-            logo_label.pack(side="left")
+            self.logo_label = tk.Label(sgd_frame, text="🖼️", font=("Arial", 16), bg="#2c3e50", fg="white")
+            self.logo_label.pack(side="left")
 
         # Texte "SGD" à côté du logo
         text_label = tk.Label(sgd_frame, text="SGD", font=("Arial", 18, "bold"), fg="white", bg="#2c3e50")
@@ -241,6 +228,7 @@ class App:
         """Ouvre une fenêtre modale juste en dessous du bouton Paramètres"""
         fenetre = tk.Toplevel(self.root)
         fenetre.title("Paramètres")
+        configurer_icone_fenetre(fenetre, "parametres")
         fenetre.geometry("300x400")
         fenetre.resizable(False, False)
         fenetre.transient(self.root)
@@ -298,7 +286,7 @@ class App:
             font=("Arial", 10),
             bg="#8e44ad",
             fg="white",
-            command=lambda: self.ouvrir_changement_mot_de_passe(self.compte_actif, fenetre),
+            command=lambda: self.ouvrir_recuperation_mot_de_passe(self.compte_actif, fenetre),
         )
         btn_mot_de_passe.pack(pady=10, fill="x", padx=20)
         
@@ -330,97 +318,19 @@ class App:
         btn_deco = tk.Button(frame_central, text="🔒 Déconnexion", font=("Arial", 10), bg="#e74c3c", fg="white", command=deconnecter)
         btn_deco.pack(pady=20, fill="x", padx=20)
 
-    def ouvrir_changement_mot_de_passe(self, compte, parent):
-        """Change le mot de passe d'un compte après authentification avec l'ancien."""
-        fenetre = tk.Toplevel(parent)
-        fenetre.title("Changer le mot de passe")
-        fenetre.geometry("360x300")
-        fenetre.resizable(False, False)
-        fenetre.transient(parent)
-        fenetre.grab_set()
-        fenetre.configure(bg="#f0f0f0")
-
-        tk.Label(
-            fenetre,
-            text=f"Modifier le mot de passe de {compte}",
-            font=("Arial", 12, "bold"),
-            bg="#f0f0f0",
-        ).pack(pady=(16, 10))
-
-        champs = []
-        for etiquette in (
-            "Mot de passe actuel :",
-            "Nouveau mot de passe (8 caractères minimum) :",
-            "Confirmer le nouveau mot de passe :",
-        ):
-            tk.Label(fenetre, text=etiquette, bg="#f0f0f0").pack(anchor="w", padx=24)
-            champ = tk.Entry(fenetre, show="*", font=("Arial", 11))
-            champ.pack(fill="x", padx=24, pady=(2, 8))
-            champs.append(champ)
-
-        ancien, nouveau, confirmation = champs
-
-        def enregistrer():
-            ancien_mdp = ancien.get()
-            nouveau_mdp = nouveau.get()
-            confirmation_mdp = confirmation.get()
-            if not ancien_mdp:
-                messagebox.showwarning("Champ requis", "Entrez votre mot de passe actuel.", parent=fenetre)
-                ancien.focus_set()
-                return
-            if len(nouveau_mdp) < 8:
-                messagebox.showwarning(
-                    "Mot de passe invalide",
-                    "Le nouveau mot de passe doit contenir au moins 8 caractères.",
-                    parent=fenetre,
-                )
-                nouveau.focus_set()
-                return
-            if nouveau_mdp != confirmation_mdp:
-                messagebox.showwarning(
-                    "Confirmation incorrecte",
-                    "Les deux nouveaux mots de passe ne correspondent pas.",
-                    parent=fenetre,
-                )
-                confirmation.focus_set()
-                return
-            try:
-                if not database.update_password(compte, ancien_mdp, nouveau_mdp):
-                    messagebox.showerror(
-                        "Échec",
-                        "Le mot de passe actuel est incorrect.",
-                        parent=fenetre,
-                    )
-                    ancien.delete(0, tk.END)
-                    ancien.focus_set()
-                    return
-            except Exception as error:
-                messagebox.showerror(
-                    "Erreur",
-                    f"Impossible de modifier le mot de passe :\n{error}",
-                    parent=fenetre,
-                )
-                return
-            messagebox.showinfo("Succès", "Votre mot de passe a été modifié.", parent=fenetre)
-            fenetre.destroy()
-
-        tk.Button(
-            fenetre,
-            text="Enregistrer le nouveau mot de passe",
-            bg="#3498db",
-            fg="white",
-            command=enregistrer,
-        ).pack(fill="x", padx=24, pady=(4, 12))
-        ancien.focus_set()
-
     def changer_langue(self, langue):
         self.langue = langue
         messagebox.showinfo("Langue", f"Langue changée en {langue}")
+
+    def ouvrir_changement_mot_de_passe(self, compte, parent):
+        """Utilise le parcours e-mail et code pour changer le mot de passe."""
+        return self.ouvrir_recuperation_mot_de_passe(compte, parent)
 
     def ajouter_compte(self, fenetre_parent=None, position=None, on_success=None, on_cancel=None):
         """Ouvre une fenêtre pour ajouter un compte avec nom, email et mot de passe"""
         ajout_fenetre = tk.Toplevel(self.root)
         ajout_fenetre.title("Ajouter un compte")
+        configurer_icone_fenetre(ajout_fenetre, "comptes")
         ajout_fenetre.geometry("300x300")
         ajout_fenetre.resizable(False, False)
         # La racine reste masquée pendant la création du premier compte.
@@ -517,14 +427,16 @@ class App:
             ajout_fenetre.protocol("WM_DELETE_WINDOW", annuler_creation)
 
     def ouvrir_recuperation_mot_de_passe(self, compte, parent):
-        """Guide l'utilisateur à travers les trois étapes de récupération du compte."""
+        """Vérifie l'e-mail, confirme le code reçu, puis change le mot de passe."""
         fenetre = tk.Toplevel(parent)
-        fenetre.title("Récupération du mot de passe")
+        fenetre.title("Changer ou récupérer le mot de passe")
+        configurer_icone_fenetre(fenetre, "securite")
         fenetre.geometry("450x390")
         fenetre.resizable(False, False)
         fenetre.transient(parent)
         fenetre.grab_set()
         fenetre.configure(bg="#f0f0f0")
+        placer_fenetre_sous_navbar(fenetre, parent, 450, 390)
         tk.Label(fenetre, text=f"Récupération du compte {compte}", font=("Arial", 13, "bold"), bg="#f0f0f0").pack(pady=(14, 6))
         tk.Label(fenetre, text="Étape 1 — Vérifiez l'adresse e-mail du compte.", bg="#f0f0f0").pack(pady=5)
 
@@ -561,7 +473,7 @@ class App:
             host, user, password = (os.environ.get(k) for k in ("SGD_SMTP_HOST", "SGD_SMTP_USER", "SGD_SMTP_PASSWORD"))
             sender = os.environ.get("SGD_SMTP_FROM", user or "")
             try:
-                port = int(os.environ.get("SGD_SMTP_PORT", "465"))
+                port = int(os.environ.get("SGD_SMTP_PORT", "587"))
                 if not all((host, user, password, sender)) or not 1 <= port <= 65535:
                     raise ValueError("SMTP non configuré ou port invalide")
                 code = f"{secrets.randbelow(1_000_000):06d}"
@@ -635,6 +547,7 @@ class App:
         """Ouvre une fenêtre pour sélectionner un compte, puis demande le mot de passe"""
         select_fenetre = tk.Toplevel(self.root)
         select_fenetre.title("Changer de compte")
+        configurer_icone_fenetre(select_fenetre, "comptes")
         select_fenetre.geometry("300x350")
         select_fenetre.resizable(False, False)
         # Ne pas rendre la fenêtre transitoire au premier lancement : la racine
@@ -652,21 +565,17 @@ class App:
             # Position par défaut si aucune position n'est fournie
             select_fenetre.geometry("300x350")
             
-        main_x = self.root.winfo_x()
-        main_y = self.root.winfo_y()
-        main_width = self.root.winfo_width()
         param_width = 300
         param_height = 350
         if position:
             select_fenetre.geometry(position)
         else:
-            # Même position que les paramètres par défaut
-            self.root.update_idletasks()
-            main_x = self.root.winfo_x()
-            main_y = self.root.winfo_y()
-            x = main_x + (main_width - param_width)  # 20px de marge depuis la gauche
-            y = main_y + 85  # 85px depuis le haut
-            select_fenetre.geometry(f"300x350+{x}+{y}")
+            centrer_fenetre(
+                select_fenetre,
+                param_width,
+                param_height,
+                parent=None if initial else self.root,
+            )
 
         tk.Label(select_fenetre, text="Sélectionnez un compte", font=("Arial", 14, "bold"), bg="#f0f0f0").pack(pady=10)
 
@@ -715,6 +624,7 @@ class App:
 
             mdp_fenetre = tk.Toplevel(self.root)
             mdp_fenetre.title(f"Connexion - {compte_choisi}")
+            configurer_icone_fenetre(mdp_fenetre, "comptes")
             mdp_fenetre.geometry("300x250")
             mdp_fenetre.resizable(False, False)
             # Lors de la connexion initiale, la racine est cachée; ne pas
@@ -813,6 +723,7 @@ class App:
         """Ouvre une fenêtre pour supprimer les finances récentes"""
         supp_fenetre = tk.Toplevel(self.root)
         supp_fenetre.title("Supprimer des finances")
+        configurer_icone_fenetre(supp_fenetre, "depenses")
         supp_fenetre.geometry("800x500")
         supp_fenetre.resizable(False, False)
         supp_fenetre.transient(self.root)
@@ -1018,6 +929,10 @@ class App:
         """Affiche la frame demandée"""
         frame = self.frames[page_name]
         frame.tkraise()
+        if hasattr(self, "logo_tk"):
+            from PIL import ImageTk
+            self.logo_tk = ImageTk.PhotoImage(creer_logo_section(page_name))
+            self.logo_label.configure(image=self.logo_tk)
 
         titles = {
             "accueil": "SGD - Accueil",

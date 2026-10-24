@@ -26,7 +26,11 @@ if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
     throw "Manifeste de compilation manquant. Compilez le projet avec build_windows.ps1 avant l'installation."
 }
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-foreach ($relativePath in @('main.py', 'database.py', 'GestionRestaurant.spec', 'SGD.ico', 'SGD.png')) {
+foreach ($relativePath in @(
+    'main.py', 'database.py', 'ui_utils.py', 'accueil.py', 'depenses.py',
+    'revenus.py', 'rapport.py', 'deptext.py', 'GestionRestaurant.spec',
+    'SGD.ico', 'SGD.png'
+)) {
     $sourcePath = Join-Path $projectDirectory $relativePath
     $actualHash = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash
     $expectedHash = $manifest.source_sha256.$relativePath

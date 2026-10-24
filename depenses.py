@@ -3,6 +3,7 @@ from tkinter import ttk, messagebox
 from tkcalendar import Calendar
 import database
 from database import get_depenses_par_categorie, ajouter_depense
+from ui_utils import configurer_icone_fenetre, placer_fenetre_sous_navbar
 from datetime import datetime
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -366,7 +367,9 @@ class Depenses:
     def ouvrir_formulaire_ajout(self):
         ajout_fenetre = tk.Toplevel(self.parent_frame)
         ajout_fenetre.title("Ajouter une dépense")
+        configurer_icone_fenetre(ajout_fenetre, "depenses")
         ajout_fenetre.geometry("400x650")
+        placer_fenetre_sous_navbar(ajout_fenetre, self.parent_frame, 400, 650)
         ajout_fenetre.resizable(False, False)
         ajout_fenetre.transient(self.parent_frame)
         ajout_fenetre.grab_set()
@@ -529,6 +532,7 @@ class Depenses:
         """Ouvre le calendrier et met à jour le bouton avec la date choisie"""
         cal_window = tk.Toplevel(self.parent_frame.winfo_toplevel())
         cal_window.title("Choisir la date")
+        configurer_icone_fenetre(cal_window, "depenses")
         cal_window.geometry("400x500")
         cal_window.configure(bg="white")
         cal_window.transient(self.parent_frame.winfo_toplevel())

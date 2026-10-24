@@ -3,6 +3,7 @@ from tkinter import ttk, messagebox, filedialog
 from tkcalendar import Calendar
 from datetime import datetime, timedelta
 import database
+from ui_utils import configurer_icone_fenetre
 import csv
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -426,6 +427,7 @@ class Rapport:
         """Ouvre le calendrier pour sélectionner une date"""
         cal_window = tk.Toplevel(self.parent_frame.winfo_toplevel())
         cal_window.title(f"Sélectionner une date ({self.periode_selectionnee})")
+        configurer_icone_fenetre(cal_window, "rapport")
         cal_window.geometry("400x500")
         cal_window.configure(bg="white")
         cal_window.transient(self.parent_frame.winfo_toplevel())

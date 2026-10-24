@@ -6,6 +6,7 @@ import os
 import secrets
 import sys
 import time
+from contextlib import closing
 from pathlib import Path
 from tkinter import messagebox
 
@@ -51,7 +52,7 @@ def create_recovery_code(account, recovery_email, code):
     """Mémorise en mémoire un code de récupération court, limité dans le temps et en essais."""
     if not isinstance(code, str) or len(code) != 6 or not code.isdigit():
         return False
-    with connect_db() as conn:
+    with closing(connect_db()) as conn:
         row = conn.execute("SELECT email FROM comptes WHERE nom = ?", (account,)).fetchone()
     if not row or not hmac.compare_digest(row[0].strip().casefold(), recovery_email.strip().casefold()):
         return False
@@ -74,7 +75,7 @@ def verify_recovery_code(account, recovery_email, verification_code):
     if not hmac.compare_digest(state["digest"], hashlib.sha256(code.encode("utf-8")).digest()):
         state["attempts"] += 1
         return False
-    with connect_db() as conn:
+    with closing(connect_db()) as conn:
         row = conn.execute("SELECT email FROM comptes WHERE nom = ?", (account,)).fetchone()
     if not row or not hmac.compare_digest(row[0].strip().casefold(), recovery_email.strip().casefold()):
         return False
@@ -96,11 +97,15 @@ def reset_password(account, recovery_email, new_password, verification_code=None
         return False
     if not state.get("verified"):
         return False
-    with connect_db() as conn:
-        row = conn.execute("SELECT email FROM comptes WHERE nom = ?", (account,)).fetchone()
-        if not row or not hmac.compare_digest(row[0].strip().casefold(), recovery_email.strip().casefold()):
-            return False
-        conn.execute("UPDATE comptes SET mot_de_passe = ? WHERE nom = ?", (_hash_password(new_password), account))
+    with closing(connect_db()) as conn:
+        with conn:
+            row = conn.execute("SELECT email FROM comptes WHERE nom = ?", (account,)).fetchone()
+            if not row or not hmac.compare_digest(row[0].strip().casefold(), recovery_email.strip().casefold()):
+                return False
+            conn.execute(
+                "UPDATE comptes SET mot_de_passe = ? WHERE nom = ?",
+                (_hash_password(new_password), account),
+            )
     _recovery_codes.pop(account, None)
     return True
 
@@ -124,7 +129,7 @@ def delete_revenue(revenue_id, account):
 
 
 def get_account_email(account):
-    with connect_db() as conn:
+    with closing(connect_db()) as conn:
         row = conn.execute("SELECT email FROM comptes WHERE nom = ?", (account,)).fetchone()
     return row[0] if row else None
 

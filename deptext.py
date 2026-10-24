@@ -8,6 +8,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 import database
+from ui_utils import configurer_icone_fenetre
 from database import get_all_depenses_by_compte, get_all_revenus_by_compte, get_categories_for_type
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
@@ -321,6 +322,7 @@ class Rapport:
         """Ouvre le calendrier pour sélectionner une date"""
         cal_window = tk.Toplevel(self.parent_frame.winfo_toplevel())
         cal_window.title(f"Sélectionner une date ({self.periode_selectionnee})")
+        configurer_icone_fenetre(cal_window, "rapport")
         cal_window.geometry("400x500")
         cal_window.configure(bg="white")
         cal_window.transient(self.parent_frame.winfo_toplevel())
